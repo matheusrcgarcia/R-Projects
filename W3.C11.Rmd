@@ -1,0 +1,103 @@
+---
+title: "Effects on Student Math Performance"
+description: |
+  I used the build-in dataset (meapsingle) on wooldridge pacakge, to study the effects of single-parent households on student math performance, using multi linear regression. These data are for a subset of schools in southeast Michigan for the year 2000. The socioeconomic variables are obtained at the ZIP code level (where ZIP code is assigned to schools based on their mailing addresses).
+---
+
+# Importing Libraries
+
+```{r setup, include=TRUE}
+library(wooldridge)
+library(tidyverse)
+library(texreg)
+library(broom)
+library(rmarkdown)
+```
+
+# Loading the Dataset
+
+```{r Data}
+df <- meapsingle
+paged_table(df)
+```
+
+- Description on this data set: Collected by Professor Leslie Papke, an economics professor at MSU, from the Michigan Department of Education web site, <www.michigan.gov/mde>, and the U.S. Census Bureau. Professor Papke kindly provided the data. 
+
+
+# Questions 
+
+## Question 1
+Let's run the simple regression of *math4* on *pctsgle*. Also I will **interpret the slope coefficient** to better understand it. Does the effect of single parenthood seem large or small?
+
+- Observation:
+  - **math4**: percent satisfactory, 4th grade math
+  - **pctsgle**: percent of children not in married-couple families
+
+```{r Part (i), results='asis'}
+model.1 <- lm(math4~pctsgle,data = df, na.action = na.omit)
+htmlreg(model.1,
+        stars = c(0.01,0.05,01),
+        caption = "math4",
+        caption.above = TRUE,
+        digits = 3)
+```
+
+Look at this table aboveThe coefficient on *pctsgle* is significant, it has three stars of significance in our linear regression, which mean that the probability of not get this number is less the 1%. 
+
+
+## Question 2
+
+What will happen if I add the variables *lmedinc* and *free* to the equation. What is the impact on the coefficient on *pctsgle*? 
+
+- Observation:
+  - **lmedinc**: log of the zipcode median family, $ (1999)
+  - **free**: free: percent eligible, free lunch
+
+```{r Part (ii), results='asis'}
+model.2 <- lm(math4~pctsgle+lmedinc+free,data = df, na.action = na.omit)
+htmlreg(list(model.1,model.2),
+        stars = c(0.01,0.05,01),
+        caption = "math4",
+        caption.above = TRUE,
+        digits = 3)
+
+```
+
+Comparing those both models, I can see by adding the variables *lmedinc* and *free* to the equation that the coefficient on *pctsgle* becomes less significant (decreases almost 75% his significance), and the variable with the highest significance become *free*. 
+What is happening is, by omitting the variable *free* and only analyzing the significance of *pctsgle* we have a wrong understanding that this last one is very significant for *math4*. 
+
+## Question 3
+
+What is the sample correlation between *lmedinc* and *free* ?
+
+```{r Part iii}
+lm_free_cor <- df %>%
+  summarise(correlation = cor(lmedinc,free,use="complete.obs")) %>%
+  round(digits = 2)
+lm_free_cor
+```
+
+The result is not surprising! The highest is the income of the family, less they will need assistance for free launch. 
+
+## Question 4
+
+Does the substantial correlation between *lmedinc* and *free* mean that I should drop one from the regression to better estimate the causal effect of single parenthood on student performance? 
+
+  * Despite the fact those variables have a substantial correlation, I should not drop any of those in your regression, first because they do not have a perfect (exact) correlation, second because their interaction can (and will) affect our linear regression because they can affect other variables, foe example *pctsgle*.
+
+## Question 5
+
+Let's find the variance inflation factors (VIFs) for each of the explanatory variables appearing in the regression in **Question 2**. Which variable has the largest VIF? Does this knowledge affect the model I would use to study the causal effect of single parenthood on math performance?
+
+```{r Part v}
+library(car)
+vif(model.2)
+```
+The variable that has the largest VIF is *pctsgle*. 
+
+# Conclusion
+
+Knowing this will affect the model that I will use because, I run the model 2, I saw that the variable *pctsgle* is the less significant one on this model, and also has the highest VIF. Therefore I can stop using this one. 
+
+
+
