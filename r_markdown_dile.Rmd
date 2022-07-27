@@ -1,0 +1,252 @@
+---
+title: "Advanced Data Wrangling with Dplyr"
+author: "Matheus Cordeiro"
+date: "25/07/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(palmerpenguins)
+```
+
+summarize() with a list column
+across()
+case_when()
+rownames_to_columns()
+rowwise() 
+glimpse()
+distinct()
+
+
+## Count Function 
+
+`df %>% count(a, b)` is roughly equivalent to `df %>% group_by(a, b) %>% summarise(n = n())`. 
+
+```{r}
+df <- tribble(
+  ~name,    ~gender,   ~runs,
+  "Max",    "male",       10,
+  "Sandra", "female",      1,
+  "Susan",  "female",      4
+)
+```
+
+```{r}
+# counts rows:
+df %>% count(gender) 
+
+# counts runs:
+df %>% count(gender, wt = runs)
+```
+
+
+### Counting and creating variables in count()
+
+`add_count()` is equivalent to `count()` but use `mutate()` instead of `summarise()` so that they add a new column with group-wise counts.
+
+```{r}
+# count() have add_ variants that work like mutate() instead of summarise
+df %>% add_count(gender, wt = runs)
+```
+
+```{r}
+iris %>%    
+add_count(Species, wt = Petal.Length) %>%    
+select(Species, Petal.Length, n)
+```
+
+In this example `add_count` groups by the Species variable and counts the number in each group. When you add a wt argument then you are adding all the Petal.Lengths together by Species so you get a group `sum`.
+
+## Across
+
+`across()` makes it easy to apply the same transformation to multiple columns, allowing you to use `select()` semantics inside in "data-masking" functions like `summarise()` and `mutate()`.
+
+### Basic Usage of Across()
+
+#### Using across() with summarise()
+
+```{r}
+penguins %>%
+  summarise(across(c(species, island, sex), 
+                   n_distinct))
+```
+
+#### Using across() with mutate()
+
+```{r}
+iris %>%
+  as_tibble() %>%
+  mutate(across(c(Sepal.Length, Sepal.Width), round))
+```
+
+
+### Using across() with Multiple functions
+
+```{r}
+replace0 <- function(x) {
+  if_else(condition = is.na(x), 
+          true = 0, 
+          false = as.numeric(x))
+}
+penguins %>%
+  mutate(bill_length_mm = replace0(bill_length_mm),
+         bill_depth_mm = replace0(bill_depth_mm),
+         flipper_length_mm = replace0(flipper_length_mm),
+         body_mass_g = replace0(body_mass_g))
+
+
+# define a function to replace NA with 0
+
+penguins %>%
+  mutate(across(where(is.numeric), replace0))
+
+penguins %>%
+  mutate(across(where(is.numeric), ~if_else(is.na(.), mean(., na.rm = T), as.numeric(.))))
+```
+
+
+## Case_when()
+
+### If_else()
+
+![](https://www.sharpsightlabs.com/wp-content/uploads/2021/03/case_when-R-featured-image.png) 
+
+This function allows you to vectorize (and replace) multiple if_else() statements in a succinct and clear manner.
+
+### Syntax
+
+![](https://cdn-coiao.nitrocdn.com/CYHudqJZsSxQpAPzLkHFOkuzFKDpEHGF/assets/static/optimized/rev-b3f6ac8/wp-content/uploads/2021/03/r-case_when-simple-syntax-example.png) 
+
+### Case_when() with mutate
+
+`case_when()` is particularly useful inside `mutate()` when you want to create a new variable that relies on a complex combination of existing variables
+
+```{r}
+test_score_df <- tribble(~student, ~major, ~test_score
+                  ,'natascha', 'business', 94
+                  ,'arun', 'statistics', 90
+                  ,'mike', 'statistics', 88
+                  ,'steve', 'statistics', 75
+                  ,'james', 'business', 66
+                  ,'ashley', 'statistics', 65
+                  ,'oscar', 'statistics', 45 
+                  )
+
+case_when(test_score_vector >= 60 ~ 'Pass'
+          ,TRUE ~ 'Fail')
+```
+
+
+```{r}
+test_score_df %>% 
+  mutate(test_grade = case_when(test_score_vector >= 90 ~ 'A'
+                                ,test_score_vector >= 80 ~ 'B'
+                                ,test_score_vector >= 70 ~ 'C'
+                                ,test_score_vector >= 60 ~ 'D'
+                                ,TRUE ~ 'F'
+                                )
+  )
+```
+
+
+### rownames_to_column()
+
+How to convert row names to a column with the dplyr package.
+
+```{r}
+mtcars_tbl <- rownames_to_column(mtcars, var = "car") %>% as_tibble()
+mtcars_tbl
+```
+
+```{r}
+data <- data.frame(x1 = LETTERS[1:5],                   
+                   x2 = letters[5:1])
+
+data2 <- data                                           
+data2 <- tibble::rownames_to_column(data2, "row_names") 
+# Apply rownames_to_column
+data2  
+```
+
+### rowwise() (5 min)
+
+`rowwise()` function that makes it easy to perform operations “row-by-row”.
+
+#### Row-wise operations with rowwise()
+
+```{r}
+df <- tibble(
+  student_id = 1:4, 
+  test1 = 10:13, 
+  test2 = 20:23, 
+  test3 = 30:33, 
+  test4 = 40:43
+)
+
+```
+
+I want to be able to compute the mean of the test scores for each student, but mutate() and mean() don’t do what I want:
+
+```{r}
+df %>% mutate(avg = mean(c(test1, test2, test3, test4)))
+```
+
+The problem is that I’m getting a mean over the whole data frame, not for each student. I can resolve this problem of getting a mean for each student by creating a “row-wise” data frame with rowwise():
+
+```{r}
+rf <- rowwise(df, student_id)
+rf
+```
+
+
+```{r}
+df <- tibble(name = c("Mara", "Hadley"), x = 1:2, y = 3:4, z = 5:6)
+
+df %>% 
+  rowwise() %>% 
+  summarise(m = mean(c(x, y, z)))
+```
+
+### Glimpse()
+
+`glimpse()` is like a transposed version of `print()`: columns run down the page, and data runs across. This makes it possible to see every column in a data frame
+
+```{r}
+glimpse(mtcars)
+```
+
+```{r}
+mtcars %>%
+  glimpse() %>%
+  select(1:3)
+```
+
+```{r}
+glimpse(starwars)
+```
+
+## Distinct()
+
+Select only unique/distinct rows from a data frame.
+
+```{r}
+df <- tibble(
+  x = sample(10, 100, rep = TRUE),
+  y = sample(10, 100, rep = TRUE)
+)
+nrow(df)
+
+nrow(distinct(df))
+
+nrow(distinct(df, x, y))
+
+```
+
+```{r}
+distinct(starwars, across(contains("color")))
+```
+
+
